@@ -1,33 +1,124 @@
 <!doctype html>
 <html>
 <head>
-	<title>Node Authentication</title>
+	<title>FileShare IceComm</title>
 	<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap.min.css">
 	<link rel="stylesheet" href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css">
+	<script type="text/javascript" src="http://cdn.icecomm.io/icecomm-0.0.6.js"></script>
+
 	<style>
 		body 		{ padding-top:80px; }
 	</style>
 </head>
 <body>
-<div class="container">
+	<div class="container">
+		<% if (!user) { %>
+			<a href="/login" class="btn btn-default" style="float: right"><span class="fa fa-user"></span> Login</a>
+			<a href="/signup" class="btn btn-default" style="float: right"><span class="fa fa-user"></span> Signup</a>
 
-	<div class="jumbotron text-center">
-		<h1><span class="fa fa-lock"></span> Node Authentication</h1>
+		<% } else { %>
+			<div style="position: float">Welcome, <%= user.local.email %></div>
+			<a href="/logout" class="btn btn-default" style="float: right">Logout</a>
+		<% } %>
 
-		<p>Login or Register with:</p>
+		<div class="jumbotron text-center">
+			<h1>FileShare IceComm</h1>
 
-		<a href="/login" class="btn btn-default"><span class="fa fa-user"></span> Local Login</a>
-		<a href="/signup" class="btn btn-default"><span class="fa fa-user"></span> Local Signup</a>
-		<a href="/auth/facebook" class="btn btn-primary"><span class="fa fa-facebook"></span> Facebook</a>
-		<a href="/auth/twitter" class="btn btn-info"><span class="fa fa-twitter"></span> Twitter</a>
-		<a href="/auth/google" class="btn btn-danger"><span class="fa fa-google-plus"></span> Google+</a>
+		</div>
+
+			<% if (user) { %>
+				<div class="col-lg-8 col-md-8 col-sm-8">
+					<table class="table">
+						<th>
+							ID(s)
+						</th>
+						<th>
+							email
+						</th>
+						<th>
+							send
+						</th>
+						<tr>
+							<td>
+								<%= user._id %>
+							</td>
+							<td>
+								<%= user.local.email %>
+							</td>
+							<td>
+
+							</td>
+						</tr>
+					</table>
+				</div>
+
+				<div class="col-lg-4 col-md-4">
+					<input type="file" id="files" name="files[]" multiple />
+				</div>
+			<% } %>
+		<div class="col-md-4" style="border: 1px black">
+		</div>
 	</div>
-
-	<div class="text-center">
-		<p>A demo by <a href="http://scotch.io">Scotch</a>.</p>
-		<p>Visit the <a href="http://scotch.io/tutorials/javascript/easy-node-authentication-setup-and-local">tutorial</a>.</p>
-	</div>
-
-</div>
 </body>
+<script>
+	var comm = new IceComm('$2a$10$k.fjXGzsAGzguBt1eTEBIO5wHsjPoss.4hy2CdrHF6LqVGcuDW.G2');
+	comm.connect('fileShareRoom', { stream: false });
+
+	var arrayToStoreChunks = [];
+	comm.on('data', function(data){
+		console.log(data);
+		var data = data.data;
+
+		arrayToStoreChunks.push(data.message); // pushing chunks in array
+
+		if (data.last) {
+			downloadURI(arrayToStoreChunks.join(''), 'some.jpg');
+			arrayToStoreChunks = []; // resetting array
+		}
+	});
+
+	var userToReceive;
+	comm.on('connected', function(options) {
+		var otherIDs = comm.getRemoteIDs();
+		var initData = JSON.parse('<%-JSON.stringify(user)%>');
+		for(var i = 0; i < otherIDs.length; i++){
+			var reader = new FileReader();
+			reader.readAsDataURL(fileElement.files[0])
+			reader.onload = onReadAsDataURL;
+		}
+	});
+
+	function downloadURI(uri, name) {
+		var link = document.createElement("a");
+		link.download = name;
+		link.href = uri;
+		link.click();
+	}
+
+	var chunkLength = 1000;
+	function onReadAsDataURL(event, text, userID) {
+		var data = {}; // data object to transmit over data channel
+
+		if (event) {
+			text = event.target.result; // on first invocation
+		}
+
+		if (text.length > chunkLength) {
+			data.message = text.slice(0, chunkLength); // getting chunk using predefined chunk length
+		} else {
+			data.message = text;
+			data.last = true;
+		}
+		data.fileName = fileElement.files[0].name;
+
+		comm.send(data);
+
+		var remainingDataURL = text.slice(data.message.length);
+		if (remainingDataURL.length) {
+			setTimeout(function () {
+				onReadAsDataURL(null, remainingDataURL); // continue transmitting
+			}, 350);
+		}
+	}
+</script>
 </html>
